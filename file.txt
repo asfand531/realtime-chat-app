@@ -1,0 +1,8 @@
+-----File Start-----
+
+Hello Asfand!
+This is a sample text file for testing Node.js file reading.
+
+You can modify this text and re-run your server to see new output.
+
+-----File End-----
