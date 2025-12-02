@@ -48,7 +48,7 @@ export default function Login() {
       if (message === "Success") {
         navigate("/user");
       } else {
-        console.log(res.data.message);
+        console.log(message);
       }
     } catch (error) {
       console.log(error);
