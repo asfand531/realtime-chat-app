@@ -38,14 +38,14 @@ export default function Login() {
     console.log("User Login Data: ", userLogin);
 
     try {
-      const res = await axios.post("/api/login", form, {
+      const res = await axios.post("/api/login", userLogin, {
         headers: { "Content-Type": "application/json" },
       });
 
-      console.log(res.data);
-      const message = res.data.message;
+      const { message, token } = res.data;
 
       if (message === "Success") {
+        localStorage.setItem("authToken", token);
         navigate("/user");
       } else {
         console.log(message);

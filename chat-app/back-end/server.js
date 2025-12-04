@@ -6,12 +6,17 @@ import fs from "fs";
 import path from "path";
 import bcrypt from "bcrypt";
 import axios from "axios";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
 
 const app = express();
 const PORT = 4000;
+dotenv.config();
 
 app.use(express.json());
 app.use(cors());
+const SECRET_KEY = process.env.JWT_SECRET_KEY;
+// console.debug("Secret Key: ", SECRET_KEY);
 
 const uploadRoot = path.join(process.cwd(), "uploadedImages");
 
@@ -86,28 +91,36 @@ app.post("/api/sign_up", async (req, res) => {
   }
 });
 
-app.post("/api/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
 
-  const getInfo = `SELECT * from sign_up where email = ?`;
+  const getInfo = `SELECT * FROM sign_up WHERE email = ?`;
 
-  sql.query(getInfo, [email, password], async (err, result) => {
+  sql.query(getInfo, [email], async (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
 
-    if (result.length === 0)
-      return res.status(500).json({ error: "Record not found!" });
-    const hashedPassword = result.find((item) => item.email === email);
-    if (hashedPassword) {
-      const comparePassword = await bcrypt.compare(
-        password,
-        hashedPassword.password
-      );
-      if (comparePassword) {
-        res.json({ message: "Success" });
-      } else {
-        res.json({ message: "Provided record not found!" });
-      }
+    if (result.length === 0) {
+      return res.status(400).json({ error: "Email not found!" });
     }
+
+    const user = result[0];
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: "Invalid password!" });
+    }
+
+    const token = jwt.sign(
+      {
+        id: user.id,
+        name: user.name,
+        phone_no: user.phone_no,
+      },
+      SECRET_KEY,
+      { expiresIn: "1h" }
+    );
+
+    res.json({ message: "Success", token });
   });
 });
 

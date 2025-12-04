@@ -6,6 +6,7 @@ import Navbar from "../Navbar/Navbar";
 import MessageInput from "../chatBox/MessageInput";
 import axios from "axios";
 import DefaultScreen from "../default/DefaultScreen";
+import { useNavigate } from "react-router-dom";
 
 function User({ search, setSearch, tooltip, handleDrawerClick }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -82,7 +83,6 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
       const res = await axios.get("/api/messages/${user.id}");
       setMessages(res.data);
     } catch (error) {
-      (req, res) => {};
       console.error(error);
     }
   };

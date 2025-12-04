@@ -6,3 +6,8 @@ export const sql = mysql2.createConnection({
   password: "bilal",
   database: "chat-app",
 });
+
+sql.connect((err) => {
+  if (err) throw err;
+  console.log("MySQL Connected!");
+});
