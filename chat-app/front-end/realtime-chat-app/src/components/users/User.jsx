@@ -26,7 +26,7 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
 
   const handleGetUsers = async () => {
     try {
-      const res = await axios.get("/api/users");
+      const res = await axios.get("/api/users", { withCredentials: true });
       setUsers(res.data);
     } catch (error) {
       console.error("Error while rendering users!", error);

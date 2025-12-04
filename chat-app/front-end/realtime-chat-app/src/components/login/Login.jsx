@@ -1,9 +1,13 @@
-import axios from "axios";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import axios from "axios";
+import Alert from "@mui/material/Alert";
+import AlertTitle from "@mui/material/AlertTitle";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState(false);
+  const [errorText, setErrorText] = useState("");
   const navigate = useNavigate();
 
   const visibility = (
@@ -30,89 +34,105 @@ export default function Login() {
     </svg>
   );
 
+  const showToast = (text) => {
+    setErrorText(text);
+    setError(true);
+
+    setTimeout(() => {
+      setError(false);
+      setErrorText("");
+    }, 3000);
+  };
+
   const handleLoginForm = async (e) => {
     e.preventDefault();
 
     const form = new FormData(e.target);
     const userLogin = Object.fromEntries(form.entries());
-    console.log("User Login Data: ", userLogin);
+    // console.log("User Login Data: ", userLogin);
 
     try {
       const res = await axios.post("/api/login", userLogin, {
+        withCredentials: true,
         headers: { "Content-Type": "application/json" },
       });
 
       const { message, token } = res.data;
 
       if (message === "Success") {
-        localStorage.setItem("authToken", token);
+        // localStorage.setItem("authToken", token);
         navigate("/user");
-      } else {
-        console.log(message);
       }
     } catch (error) {
-      console.log(error);
+      const errMsg = error?.response?.data?.error || "Something went wrong!";
+      showToast(errMsg);
     }
   };
 
   return (
     <>
-      <div className="drawer lg:drawer-open bg-base-300">
-        <input
-          id="my-drawer-4"
-          type="checkbox"
-          className="drawer-toggle"
-          defaultChecked={true}
-        />
-        <div className="drawer-content">
-          <div className="flex justify-center items-center h-screen">
-            <form onSubmit={handleLoginForm}>
-              <fieldset className="fieldset bg-base-100 border-neutral-700 rounded-box w-lg border p-4">
-                <legend className="fieldset-legend font-bold">Login</legend>
+      {error && (
+        <div className="w-svw absolute z-10 flex justify-center items-center top-6">
+          <Alert
+            severity="error"
+            variant="filled"
+            onClose={() => {
+              setError(false);
+            }}
+          >
+            <AlertTitle>Error</AlertTitle>
+            <span>{errorText}</span>
+          </Alert>
+        </div>
+      )}
+      <div className="drawer lg:drawer-open bg-base-300 flex justify-center">
+        <div className="flex justify-center items-center h-screen">
+          <form onSubmit={handleLoginForm}>
+            <fieldset className="fieldset bg-base-100 border-neutral-700 rounded-box w-lg border p-4">
+              <legend className="fieldset-legend font-bold">Login</legend>
 
-                <label className="label">Email</label>
+              <label className="label">Email</label>
+              <input
+                type="email"
+                className="input w-lg"
+                placeholder="Email"
+                name="email"
+                autoComplete="false"
+                required
+              />
+
+              <label className="label">Password</label>
+              <span className="relative flex items-center">
                 <input
-                  type="email"
-                  className="input w-lg"
-                  placeholder="Email"
-                  name="email"
+                  type={showPassword ? "text" : "password"}
+                  className={`input w-lg pr-10 `}
+                  placeholder="Password"
+                  name="password"
                   autoComplete="false"
                   required
                 />
 
-                <label className="label">Password</label>
-                <span className="relative flex items-center">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    className={`input w-lg pr-10 `}
-                    placeholder="Password"
-                    name="password"
-                    autoComplete="false"
-                    required
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 cursor-pointer z-10"
-                  >
-                    {showPassword ? visibilityOff : visibility}
-                  </button>
-                </span>
-
-                <button type="submit" className="btn btn-neutral mt-4">
-                  Login
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 cursor-pointer z-10"
+                >
+                  {showPassword ? visibilityOff : visibility}
                 </button>
+              </span>
 
-                <p className="flex justify-center">
-                  Don't have an account? &nbsp;
-                  <span className="cursor-pointer font-bold text-blue-500">
-                    <Link to="/register"> Sign Up</Link>
-                  </span>
-                </p>
-              </fieldset>
-            </form>
-          </div>
+              <button type="submit" className="btn btn-neutral mt-4">
+                Login
+              </button>
+
+              <p className="flex justify-center">
+                Don't have an account? &nbsp;
+                <span className="cursor-pointer font-bold text-blue-500">
+                  <Link to="/register"> Sign Up</Link>
+                </span>
+              </p>
+            </fieldset>
+          </form>
         </div>
       </div>
     </>

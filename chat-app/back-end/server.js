@@ -8,6 +8,7 @@ import bcrypt from "bcrypt";
 import axios from "axios";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
 
 const app = express();
 const PORT = 4000;
@@ -15,6 +16,7 @@ dotenv.config();
 
 app.use(express.json());
 app.use(cors());
+app.use(cookieParser());
 const SECRET_KEY = process.env.JWT_SECRET_KEY;
 // console.debug("Secret Key: ", SECRET_KEY);
 
@@ -22,6 +24,22 @@ const uploadRoot = path.join(process.cwd(), "uploadedImages");
 
 if (!fs.existsSync(uploadRoot)) {
   fs.mkdirSync(uploadRoot);
+}
+
+function authMiddleware(req, res, next) {
+  const token = req.cookies.authToken;
+
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized: no token" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, SECRET_KEY);
+    req.user = decoded; // store user info
+    next();
+  } catch (err) {
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
 }
 
 app.use("/images", express.static(uploadRoot));
@@ -100,7 +118,7 @@ app.post("/api/login", async (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
 
     if (result.length === 0) {
-      return res.status(400).json({ error: "Email not found!" });
+      return res.status(400).json({ error: "Email and password not found!" });
     }
 
     const user = result[0];
@@ -110,18 +128,32 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ error: "Invalid password!" });
     }
 
+    // Creating a JWT Token
     const token = jwt.sign(
       {
         id: user.id,
-        name: user.name,
+        email: user.email,
         phone_no: user.phone_no,
       },
       SECRET_KEY,
       { expiresIn: "1h" }
     );
 
-    res.json({ message: "Success", token });
+    // Send it as HTTP-ONLY COOKIE
+    res.cookie("authToken", token, {
+      httpOnly: true,
+      secure: false, // Make true when using  HTTPS
+      sameSite: "strict",
+      maxAge: 60 * 60 * 1000,
+    });
+
+    res.json({ message: "Success" });
   });
+});
+
+app.post("/api/logout", (req, res) => {
+  res.clearCookie("authToken");
+  res.json({ message: "Logged out" });
 });
 
 app.get("/api/table", (req, res, next) => {
@@ -196,7 +228,7 @@ app.post("/api/messages", (req, res) => {
   );
 });
 
-app.get("/api/users", (req, res) => {
+app.get("/api/users", authMiddleware, (req, res) => {
   sql.query("SELECT * from users", (err, result) => {
     if (err) {
       return res.status(500).json({ message: err.message });

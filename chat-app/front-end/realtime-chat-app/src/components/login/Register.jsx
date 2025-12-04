@@ -70,68 +70,60 @@ export default function Register() {
 
   return (
     <>
-      <div className="drawer lg:drawer-open bg-base-300">
-        <input
-          id="my-drawer-4"
-          type="checkbox"
-          className="drawer-toggle"
-          defaultChecked={true}
-        />
-        <div className="drawer-content">
-          <div className="flex justify-center items-center h-screen">
-            <form onSubmit={handleSignUpForm}>
-              <fieldset className="fieldset bg-base-100 border-neutral-700 rounded-box w-lg border p-4">
-                <legend className="fieldset-legend font-bold">Sign Up</legend>
-                {formValues.map((f, i) => {
-                  const { label, type, name } = f;
-                  return (
-                    <Fragment key={i}>
-                      <label className="label">{label}</label>
-                      <input
-                        type={type}
-                        className="input w-lg"
-                        placeholder={label}
-                        name={name}
-                        autoComplete="false"
-                        required="true"
-                      />
-                    </Fragment>
-                  );
-                })}
+      <div className="drawer lg:drawer-open bg-base-300 flex justify-center">
+        <div className="flex justify-center items-center h-screen">
+          <form onSubmit={handleSignUpForm}>
+            <fieldset className="fieldset bg-base-100 border-neutral-700 rounded-box w-lg border p-4">
+              <legend className="fieldset-legend font-bold">Sign Up</legend>
+              {formValues.map((f, i) => {
+                const { label, type, name } = f;
+                return (
+                  <Fragment key={i}>
+                    <label className="label">{label}</label>
+                    <input
+                      type={type}
+                      className="input w-lg"
+                      placeholder={label}
+                      name={name}
+                      autoComplete="false"
+                      required="true"
+                    />
+                  </Fragment>
+                );
+              })}
 
-                <label className="label">Password</label>
-                <span className="relative flex items-center">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    className={`input w-lg pr-10 `}
-                    placeholder="Password"
-                    name="password"
-                    autoComplete="false"
-                    required="true"
-                  />
+              <label className="label">Password</label>
+              <span className="relative flex items-center">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  className={`input w-lg pr-10 `}
+                  placeholder="Password"
+                  name="password"
+                  autoComplete="false"
+                  required="true"
+                />
 
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 cursor-pointer z-10"
-                  >
-                    {showPassword ? visibilityOff : visibility}
-                  </button>
-                </span>
-
-                <button type="submit" className="btn btn-neutral mt-4">
-                  Sign Up
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 cursor-pointer z-10"
+                >
+                  {showPassword ? visibilityOff : visibility}
                 </button>
+              </span>
 
-                <p className="flex justify-center">
-                  Already have an account? &nbsp;
-                  <span className="cursor-pointer font-bold text-blue-500">
-                    <Link to="/"> Login</Link>
-                  </span>
-                </p>
-              </fieldset>
-            </form>
-          </div>
+              <button type="submit" className="btn btn-neutral mt-4">
+                Sign Up
+              </button>
+
+              <p className="flex justify-center">
+                Already have an account? &nbsp;
+                <span className="cursor-pointer font-bold text-blue-500">
+                  <Link to="/"> Login</Link>
+                </span>
+              </p>
+            </fieldset>
+          </form>
         </div>
       </div>
     </>
