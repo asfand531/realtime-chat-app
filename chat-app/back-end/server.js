@@ -129,6 +129,9 @@ app.post("/api/login", async (req, res) => {
     }
 
     // Creating a JWT Token
+    if (!SECRET_KEY)
+      return res.status(500).json({ message: "InternalServer error" });
+
     const token = jwt.sign(
       {
         id: user.id,

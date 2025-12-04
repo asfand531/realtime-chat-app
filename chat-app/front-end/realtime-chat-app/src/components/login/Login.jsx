@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
+import Cookies from "js-cookie";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -60,7 +61,7 @@ export default function Login() {
       const { message, token } = res.data;
 
       if (message === "Success") {
-        // localStorage.setItem("authToken", token);
+        localStorage.setItem("authToken", "true");
         navigate("/user");
       }
     } catch (error) {
@@ -68,6 +69,14 @@ export default function Login() {
       showToast(errMsg);
     }
   };
+
+  useEffect(() => {
+    const token = Cookies.get("authToken");
+
+    if (token) {
+      navigate("/user");
+    }
+  }, []);
 
   return (
     <>
@@ -128,7 +137,7 @@ export default function Login() {
               <p className="flex justify-center">
                 Don't have an account? &nbsp;
                 <span className="cursor-pointer font-bold text-blue-500">
-                  <Link to="/register"> Sign Up</Link>
+                  <Link to="/register">Sign Up</Link>
                 </span>
               </p>
             </fieldset>
