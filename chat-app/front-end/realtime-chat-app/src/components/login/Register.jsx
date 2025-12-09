@@ -42,8 +42,6 @@ export default function Register() {
         headers: { "Content-Type": "application/json" },
       });
 
-      console.debug("Registered User: ", response);
-
       setRegisterUser((prev) => [...prev, response.data]);
     } catch (error) {
       console.log(error);
@@ -108,7 +106,11 @@ export default function Register() {
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute right-3 cursor-pointer z-10"
                 >
-                  {showPassword ? visibilityOff : visibility}
+                  {showPassword ? (
+                    <span title="Hide password">{visibilityOff}</span>
+                  ) : (
+                    <span title="Show password">{visibility}</span>
+                  )}
                 </button>
               </span>
 
@@ -119,7 +121,7 @@ export default function Register() {
               <p className="flex justify-center">
                 Already have an account? &nbsp;
                 <span className="cursor-pointer font-bold text-blue-500">
-                  <Link to="/"> Login</Link>
+                  <Link to="/login"> Login</Link>
                 </span>
               </p>
             </fieldset>

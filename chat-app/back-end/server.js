@@ -9,8 +9,13 @@ import axios from "axios";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
+import { WebSocketServer } from "ws";
+import http from "http";
 
 const app = express();
+const server = http.createServer(app);
+
+const wss = new WebSocketServer({ server: server });
 const PORT = 4000;
 dotenv.config();
 
@@ -26,11 +31,21 @@ if (!fs.existsSync(uploadRoot)) {
   fs.mkdirSync(uploadRoot);
 }
 
+wss.on("connection", function connection(ws) {
+  ws.on("error", console.error);
+
+  ws.on("message", function message(data) {
+    console.log("received: %s", data);
+  });
+
+  ws.send("something");
+});
+
 function authMiddleware(req, res, next) {
   const token = req.cookies.authToken;
 
   if (!token) {
-    return res.status(401).json({ error: "Unauthorized: no token" });
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   try {
@@ -41,6 +56,10 @@ function authMiddleware(req, res, next) {
     res.status(401).json({ error: "Invalid or expired token" });
   }
 }
+
+app.get("/api/check-auth", authMiddleware, (req, res) => {
+  res.json({ authenticated: true, user: req.user });
+});
 
 app.use("/images", express.static(uploadRoot));
 
@@ -150,11 +169,11 @@ app.post("/api/login", async (req, res) => {
       maxAge: 60 * 60 * 1000,
     });
 
-    res.json({ message: "Success" });
+    res.json({ message: "Success", name: user.name });
   });
 });
 
-app.post("/api/logout", (req, res) => {
+app.get("/api/logout", (req, res) => {
   res.clearCookie("authToken");
   res.json({ message: "Logged out" });
 });
@@ -302,6 +321,6 @@ app.post("/api/upload", uplaod.single("file"), (req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`App running on the http://localhost:${PORT}`);
 });

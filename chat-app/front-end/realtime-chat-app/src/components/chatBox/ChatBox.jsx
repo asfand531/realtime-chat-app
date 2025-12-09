@@ -1,5 +1,3 @@
-import { useRef } from "react";
-
 function ChatBox({
   messages,
   users,
@@ -7,17 +5,14 @@ function ChatBox({
   selectedUser,
   setSelectedUser,
   handleEsc,
+  sentMsg,
 }) {
-  const userRef = useRef(null);
 
-  const handleExitMenu = (e) => {
-    // const val = e.
-  }
-
+  
   return (
     <>
       {selectedUser ? (
-        <div className="" onContextMenu={handleExitMenu}>
+        <div>
           {/* Receiver */}
           <div className="chat chat-start">
             <div className="chat-image avatar">
@@ -29,9 +24,7 @@ function ChatBox({
               {selectedUser.name}
               <time className="text-xs opacity-50">12:45</time>
             </div>
-            <div className="chat-bubble chat-bubble-primary">
-              iwbdkc ewif wkef cw
-            </div>
+            <div className="chat-bubble chat-bubble-primary">Reciever</div>
             <div className="chat-footer opacity-50">Delivered</div>
           </div>
 
@@ -49,9 +42,7 @@ function ChatBox({
               You
               <time className="text-xs opacity-50">12:46</time>
             </div>
-            <div className="chat-bubble chat-bubble-info">
-              jahkdsj kas dasdm b
-            </div>
+            <div className="chat-bubble chat-bubble-info">{sentMsg}</div>
             <div className="chat-footer opacity-50">Seen at 12:46</div>
           </div>
         </div>

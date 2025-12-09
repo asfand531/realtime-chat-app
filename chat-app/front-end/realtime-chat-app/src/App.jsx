@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import User from "./components/users/User";
 import Login from "./components/login/Login";
 import Register from "./components/login/Register";
-import { BrowserRouter, Routes, Route } from "react-router";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 
 export default function App() {
   const [tooltip, setTooltip] = useState("Close");
   const [search, setSearch] = useState("");
+  const [loginUserData, setLoginUserData] = useState("");
   const [isDrawerOpen, setIsDrawerOpen] = useState(true);
+  const [sentMsg, setSentMsg] = useState("");
 
   const handleDrawer = () => {
     setTooltip(isDrawerOpen ? "Open" : "Close");
@@ -18,33 +20,49 @@ export default function App() {
     handleDrawer();
   };
 
+  const handleSentMsg = (event) => {
+    setSentMsg(event.target.value);
+    console.log("Sent message: ", sentMsg);
+  };
+
+  // useEffect(() => {
+  //   const ws = new WebSocket("ws://localhost:4000");
+  //   ws.addEventListener("open", () => {
+  //     console.log("Connected");
+  //   });
+  //   ws.addEventListener("message", (e) => {
+  //     console.log(e);
+  //   });
+  //   ws.addEventListener("error", (e) => {
+  //     console.log(e);
+  //   });
+  //   ws.addEventListener("close", (e) => {
+  //     ws.close();
+  //   });
+  //   ws.send("");
+  // }, []);
+
   return (
     <>
       <BrowserRouter>
         <Routes>
           <Route
+            path="/login"
+            element={<Login setLoginUserData={setLoginUserData} />}
+          />
+          <Route path="/register" element={<Register />} />
+          <Route
             path="/"
-            element={
-              <Login tooltip={tooltip} handleDrawerClick={handleDrawerClick} />
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              <Register
-                tooltip={tooltip}
-                handleDrawerClick={handleDrawerClick}
-              />
-            }
-          />
-          <Route
-            path="/user"
             element={
               <User
                 search={search}
                 setSearch={setSearch}
                 tooltip={tooltip}
                 handleDrawerClick={handleDrawerClick}
+                loginUserData={loginUserData}
+                sentMsg={sentMsg}
+                setSentMsg={setSentMsg}
+                handleSentMsg={handleSentMsg}
               />
             }
           />

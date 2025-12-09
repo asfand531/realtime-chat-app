@@ -8,11 +8,21 @@ import axios from "axios";
 import DefaultScreen from "../default/DefaultScreen";
 import { useNavigate } from "react-router-dom";
 
-function User({ search, setSearch, tooltip, handleDrawerClick }) {
+function User({
+  search,
+  setSearch,
+  tooltip,
+  handleDrawerClick,
+  loginUserData,
+  sentMsg,
+  setSentMsg,
+  handleSentMsg,
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
+  const navigate = useNavigate();
 
   const filteredUsers = users.filter((user) => {
     return user.name.toLowerCase().includes(search.toLowerCase());
@@ -87,6 +97,12 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
     }
   };
 
+  const handleLogout = async () => {
+    await axios.get("/api/logout");
+    navigate("/login");
+    return;
+  };
+
   return (
     <>
       <div className="drawer lg:drawer-open">
@@ -150,6 +166,7 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
                 setSelectedUser={setSelectedUser}
                 handleEsc={handleEsc}
                 handleUserClick={handleUserClick}
+                sentMsg={sentMsg}
               />
             </div>
 
@@ -159,7 +176,12 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
               className="overflow-hidden bottom-0 w-full bg-[#15191e]"
               onKeyDown={handleEsc}
             >
-              <MessageInput handleEsc={handleEsc} />
+              <MessageInput
+                handleEsc={handleEsc}
+                sentMsg={sentMsg}
+                setSentMsg={setSentMsg}
+                handleSentMsg={handleSentMsg}
+              />
             </div>
           </div>
         ) : (
@@ -198,7 +220,7 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
 
             <Searchbar search={search} setSearch={setSearch} />
 
-            <hr className="w-full text-gray-400" />
+            <hr className="w-full text-gray-400 border" />
 
             {/* Users */}
             <ul className="menu px-0 w-full grow">
@@ -223,6 +245,29 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
                 );
               })}
             </ul>
+
+            <hr className="w-full text-gray-400 border" />
+
+            <section className="flex is-drawer-open:justify-between is-drawer-close:justify-center items-center w-full px-3 py-5 is-drawer-close:py-6.5">
+              <span className="font-bold text-md text-wrap cursor-default is-drawer-close:hidden">
+                {loginUserData}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="tooltip tooltip-top cursor-pointer bg-gray-800 px-2 py-1 rounded"
+                data-tip="Logout"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  height="20px"
+                  viewBox="0 -960 960 960"
+                  width="20px"
+                  fill="#e3e3e3"
+                >
+                  <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z" />
+                </svg>
+              </button>
+            </section>
           </div>
         </div>
       </div>

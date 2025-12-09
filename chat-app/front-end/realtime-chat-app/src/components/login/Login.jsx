@@ -5,7 +5,7 @@ import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
 import Cookies from "js-cookie";
 
-export default function Login() {
+export default function Login({ setLoginUserData }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -50,7 +50,6 @@ export default function Login() {
 
     const form = new FormData(e.target);
     const userLogin = Object.fromEntries(form.entries());
-    // console.log("User Login Data: ", userLogin);
 
     try {
       const res = await axios.post("/api/login", userLogin, {
@@ -58,11 +57,12 @@ export default function Login() {
         headers: { "Content-Type": "application/json" },
       });
 
-      const { message, token } = res.data;
+      const { message, name } = res.data;
 
       if (message === "Success") {
         localStorage.setItem("authToken", "true");
-        navigate("/user");
+        setLoginUserData(name);
+        navigate("/");
       }
     } catch (error) {
       const errMsg = error?.response?.data?.error || "Something went wrong!";
@@ -74,9 +74,14 @@ export default function Login() {
     const token = Cookies.get("authToken");
 
     if (token) {
-      navigate("/user");
+      navigate("/");
     }
-  }, []);
+
+    axios
+      .get("/api/check-auth", { withCredentials: true })
+      .then(() => navigate("/"))
+      .catch(() => {});
+  }, [navigate]);
 
   return (
     <>
@@ -126,7 +131,11 @@ export default function Login() {
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute right-3 cursor-pointer z-10"
                 >
-                  {showPassword ? visibilityOff : visibility}
+                  {showPassword ? (
+                    <span title="Hide password">{visibilityOff}</span>
+                  ) : (
+                    <span title="Show password">{visibility}</span>
+                  )}
                 </button>
               </span>
 
