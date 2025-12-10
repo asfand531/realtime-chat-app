@@ -65,7 +65,8 @@ export default function Login({ setLoginUserData }) {
         navigate("/");
       }
     } catch (error) {
-      const errMsg = error?.response?.data?.error || "Something went wrong!";
+      const errMsg = error?.response?.data?.message || "Something went wrong!";
+      console.log("Your error message: ", error);
       showToast(errMsg);
     }
   };
@@ -129,13 +130,10 @@ export default function Login({ setLoginUserData }) {
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute right-3 cursor-pointer z-10"
+                  className="absolute right-3 cursor-pointer z-10 tooltip tooltip-bottom"
+                  data-tip={showPassword ? "Hide password" : "Show Password"}
                 >
-                  {showPassword ? (
-                    <span title="Hide password">{visibilityOff}</span>
-                  ) : (
-                    <span title="Show password">{visibility}</span>
-                  )}
+                  {showPassword ? visibilityOff : visibility}
                 </button>
               </span>
 

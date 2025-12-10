@@ -8,20 +8,12 @@ import axios from "axios";
 import DefaultScreen from "../default/DefaultScreen";
 import { useNavigate } from "react-router-dom";
 
-function User({
-  search,
-  setSearch,
-  tooltip,
-  handleDrawerClick,
-  loginUserData,
-  sentMsg,
-  setSentMsg,
-  handleSentMsg,
-}) {
+function User({ search, setSearch, tooltip, handleDrawerClick }) {
   const [isOpen, setIsOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [name, setName] = useState("");
   const navigate = useNavigate();
 
   const filteredUsers = users.filter((user) => {
@@ -43,9 +35,18 @@ function User({
     }
   };
 
+  const handleUserName = async () => {
+    const res = await axios.get("/api/me", {
+      withCredentials: true,
+    });
+    const name1 = res?.data?.decoded?.name;
+    setName(name1);
+  };
+
   useEffect(() => {
     const loadUsers = async () => {
       await handleGetUsers();
+      await handleUserName();
     };
 
     loadUsers();
@@ -119,7 +120,7 @@ function User({
             onClick={handleEsc}
           >
             {/* Navbar */}
-            <nav className="navbar w-full bg-base-300 fixed">
+            <nav className="navbar w-full bg-base-300 fixed z-1000">
               <label
                 id="close_icon"
                 htmlFor="my-drawer-4"
@@ -155,7 +156,7 @@ function User({
 
             {/* Chats */}
             <div
-              className="p-4 overflow-scroll no-scrollbar flex flex-col-reverse h-[calc(100vh-5rem)]"
+              className="px-4 pt-18 pb-4 overflow-scroll no-scrollbar flex flex-col-reverse h-[calc(100vh-5rem)]"
               onKeyDown={handleEsc}
             >
               <ChatBox
@@ -166,7 +167,6 @@ function User({
                 setSelectedUser={setSelectedUser}
                 handleEsc={handleEsc}
                 handleUserClick={handleUserClick}
-                sentMsg={sentMsg}
               />
             </div>
 
@@ -178,9 +178,8 @@ function User({
             >
               <MessageInput
                 handleEsc={handleEsc}
-                sentMsg={sentMsg}
-                setSentMsg={setSentMsg}
-                handleSentMsg={handleSentMsg}
+                messages={messages}
+                setMessages={setMessages}
               />
             </div>
           </div>
@@ -250,7 +249,7 @@ function User({
 
             <section className="flex is-drawer-open:justify-between is-drawer-close:justify-center items-center w-full px-3 py-5 is-drawer-close:py-6.5">
               <span className="font-bold text-md text-wrap cursor-default is-drawer-close:hidden">
-                {loginUserData}
+                {name}
               </span>
               <button
                 onClick={handleLogout}

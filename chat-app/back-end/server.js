@@ -7,22 +7,26 @@ import path from "path";
 import bcrypt from "bcrypt";
 import axios from "axios";
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
+// import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import { WebSocketServer } from "ws";
 import http from "http";
+import yaml from "js-yaml";
 
 const app = express();
 const server = http.createServer(app);
 
 const wss = new WebSocketServer({ server: server });
 const PORT = 4000;
-dotenv.config();
+// dotenv.config();
 
 app.use(express.json());
 app.use(cors());
 app.use(cookieParser());
-const SECRET_KEY = process.env.JWT_SECRET_KEY;
+const config = yaml.load(fs.readFileSync("../back-end/config.yaml", "utf8"));
+const SECRET_KEY = config.secrets.key;
+console.log("Your key is: ", SECRET_KEY);
+// const SECRET_KEY = process.env.JWT_SECRET_KEY;
 // console.debug("Secret Key: ", SECRET_KEY);
 
 const uploadRoot = path.join(process.cwd(), "uploadedImages");
@@ -149,17 +153,9 @@ app.post("/api/login", async (req, res) => {
 
     // Creating a JWT Token
     if (!SECRET_KEY)
-      return res.status(500).json({ message: "InternalServer error" });
+      return res.status(500).json({ message: "Internal Server error" });
 
-    const token = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-        phone_no: user.phone_no,
-      },
-      SECRET_KEY,
-      { expiresIn: "1h" }
-    );
+    const token = jwt.sign(user, SECRET_KEY, { expiresIn: "1h" });
 
     // Send it as HTTP-ONLY COOKIE
     res.cookie("authToken", token, {
@@ -169,7 +165,18 @@ app.post("/api/login", async (req, res) => {
       maxAge: 60 * 60 * 1000,
     });
 
-    res.json({ message: "Success", name: user.name });
+    res.json({ message: "Success" });
+  });
+});
+
+app.get("/api/me", (req, res) => {
+  const token = req.cookies.authToken;
+
+  jwt.verify(token, SECRET_KEY, function (err, decoded) {
+    if (err) {
+      res.status(500).json({ message: "Token expired!" });
+    }
+    res.json({ message: "Success", decoded });
   });
 });
 

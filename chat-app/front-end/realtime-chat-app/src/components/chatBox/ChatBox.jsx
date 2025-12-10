@@ -5,10 +5,7 @@ function ChatBox({
   selectedUser,
   setSelectedUser,
   handleEsc,
-  sentMsg,
 }) {
-
-  
   return (
     <>
       {selectedUser ? (
@@ -29,22 +26,29 @@ function ChatBox({
           </div>
 
           {/* Myself */}
-          <div className="chat chat-end">
-            <div className="chat-image avatar">
-              <div className="w-10 rounded-full">
-                <img
-                  alt="Tailwind CSS chat bubble component"
-                  src="https://img.daisyui.com/images/profile/demo/kenobee@192.webp"
-                />
+
+          {messages.map((m) => {
+            const { id, sender, text, time } = m;
+
+            return (
+              <div className="chat chat-end" key={id}>
+                <div className="chat-image avatar">
+                  <div className="w-10 rounded-full">
+                    <img
+                      alt="Tailwind CSS chat bubble component"
+                      src="https://img.daisyui.com/images/profile/demo/kenobee@192.webp"
+                    />
+                  </div>
+                </div>
+                <div className="chat-header">
+                  {sender}
+                  <time className="text-xs opacity-50">{time}</time>
+                </div>
+                <div className="chat-bubble chat-bubble-info">{text}</div>
+                <time className="chat-footer opacity-50">Seen at </time>
               </div>
-            </div>
-            <div className="chat-header">
-              You
-              <time className="text-xs opacity-50">12:46</time>
-            </div>
-            <div className="chat-bubble chat-bubble-info">{sentMsg}</div>
-            <div className="chat-footer opacity-50">Seen at 12:46</div>
-          </div>
+            );
+          })}
         </div>
       ) : (
         ""

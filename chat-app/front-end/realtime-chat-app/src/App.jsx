@@ -7,9 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 export default function App() {
   const [tooltip, setTooltip] = useState("Close");
   const [search, setSearch] = useState("");
-  const [loginUserData, setLoginUserData] = useState("");
   const [isDrawerOpen, setIsDrawerOpen] = useState(true);
-  const [sentMsg, setSentMsg] = useState("");
 
   const handleDrawer = () => {
     setTooltip(isDrawerOpen ? "Open" : "Close");
@@ -18,11 +16,6 @@ export default function App() {
   const handleDrawerClick = () => {
     setIsDrawerOpen((prev) => !prev);
     handleDrawer();
-  };
-
-  const handleSentMsg = (event) => {
-    setSentMsg(event.target.value);
-    console.log("Sent message: ", sentMsg);
   };
 
   // useEffect(() => {
@@ -46,10 +39,7 @@ export default function App() {
     <>
       <BrowserRouter>
         <Routes>
-          <Route
-            path="/login"
-            element={<Login setLoginUserData={setLoginUserData} />}
-          />
+          <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route
             path="/"
@@ -59,10 +49,6 @@ export default function App() {
                 setSearch={setSearch}
                 tooltip={tooltip}
                 handleDrawerClick={handleDrawerClick}
-                loginUserData={loginUserData}
-                sentMsg={sentMsg}
-                setSentMsg={setSentMsg}
-                handleSentMsg={handleSentMsg}
               />
             }
           />

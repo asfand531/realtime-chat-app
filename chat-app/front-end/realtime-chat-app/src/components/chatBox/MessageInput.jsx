@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SpeedDial from "./speedDial/SpeedDial";
 
-function MessageInput({ sentMsg, setSentMsg, handleSentMsg }) {
+function MessageInput({ messages, setMessages }) {
   const [msg, setMsg] = useState("");
+  const [isDisable, setIsDisable] = useState(true);
 
   const sendBtn = (
     <svg
@@ -16,32 +17,56 @@ function MessageInput({ sentMsg, setSentMsg, handleSentMsg }) {
     </svg>
   );
 
-  const handleMsgChange = (e) => {
-    // setSentMsg(e.target.value);
+  const handleSendBtn = () => {
+    if (!msg.trim()) return;
+
+    setIsDisable(msg.trim() === "");
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        sender: "You",
+        text: msg,
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      },
+    ]);
+
+    setMsg("");
+    setIsDisable(true);
+  };
+
+  const handleInput = (e) => {
+    const value = e.target.value;
+    setMsg(value);
+    setIsDisable(value.trim() === "");
   };
 
   return (
     <>
-      <p>Your message: {msg}</p>
       <div className="flex items-center gap-3 px-4 py-3 w-full overflow-hidden no-scrollbar">
         <SpeedDial />
 
         <textarea
           rows={1}
-          type="text"
           placeholder="Type a message here..."
           className="border px-5 py-3 ml-16 rounded-xl w-svw"
-          // onChange={handleMsgChange}
-          // value={sentMsg}
           value={msg}
-          onChange={(e) => setMsg(e.target.value)}
+          onChange={handleInput}
         />
 
         <button
-          className="cursor-pointer border px-3 py-3 rounded-4xl tooltip tooltip-left"
-          data-tip="Send message"
-          // onClick={handleSentMsg}
-          onClick={handleMsgChange}
+          className={`border px-3 py-3 rounded-4xl tooltip tooltip-left ${
+            isDisable
+              ? "opacity-50 cursor-not-allowed"
+              : "opacity-100 cursor-pointer"
+          }`}
+          data-tip={isDisable ? "" : "Send message"}
+          onClick={handleSendBtn}
+          disabled={isDisable}
         >
           {sendBtn}
         </button>

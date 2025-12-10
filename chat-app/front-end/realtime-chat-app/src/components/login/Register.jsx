@@ -84,7 +84,7 @@ export default function Register() {
                       placeholder={label}
                       name={name}
                       autoComplete="false"
-                      required="true"
+                      required={true}
                     />
                   </Fragment>
                 );
@@ -98,19 +98,16 @@ export default function Register() {
                   placeholder="Password"
                   name="password"
                   autoComplete="false"
-                  required="true"
+                  required={true}
                 />
 
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute right-3 cursor-pointer z-10"
+                  className="absolute right-3 cursor-pointer z-10 tooltip tooltip-bottom"
+                  data-tip={showPassword ? "Hide password" : "Show Password"}
                 >
-                  {showPassword ? (
-                    <span title="Hide password">{visibilityOff}</span>
-                  ) : (
-                    <span title="Show password">{visibility}</span>
-                  )}
+                  {showPassword ? visibilityOff : visibility}
                 </button>
               </span>
 
