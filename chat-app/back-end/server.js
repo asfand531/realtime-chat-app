@@ -5,60 +5,26 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import bcrypt from "bcrypt";
-import axios from "axios";
-import jwt from "jsonwebtoken";
-// import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import { WebSocketServer } from "ws";
 import http from "http";
-import yaml from "js-yaml";
+import { authMiddleware } from "./authMiddleware.js";
+import jwt from "jsonwebtoken";
+import { SECRET_KEY } from "./authMiddleware.js";
+import { setupWebSocket } from "./ws.js";
 
 const app = express();
-const server = http.createServer(app);
-
-const wss = new WebSocketServer({ server: server });
-const PORT = 4000;
-// dotenv.config();
-
 app.use(express.json());
 app.use(cors());
 app.use(cookieParser());
-const config = yaml.load(fs.readFileSync("../back-end/config.yaml", "utf8"));
-const SECRET_KEY = config.secrets.key;
-console.log("Your key is: ", SECRET_KEY);
-// const SECRET_KEY = process.env.JWT_SECRET_KEY;
-// console.debug("Secret Key: ", SECRET_KEY);
+const PORT = 4000;
+
+const server = setupWebSocket(app);
 
 const uploadRoot = path.join(process.cwd(), "uploadedImages");
 
 if (!fs.existsSync(uploadRoot)) {
   fs.mkdirSync(uploadRoot);
-}
-
-wss.on("connection", function connection(ws) {
-  ws.on("error", console.error);
-
-  ws.on("message", function message(data) {
-    console.log("received: %s", data);
-  });
-
-  ws.send("something");
-});
-
-function authMiddleware(req, res, next) {
-  const token = req.cookies.authToken;
-
-  if (!token) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  try {
-    const decoded = jwt.verify(token, SECRET_KEY);
-    req.user = decoded; // store user info
-    next();
-  } catch (err) {
-    res.status(401).json({ error: "Invalid or expired token" });
-  }
 }
 
 app.get("/api/check-auth", authMiddleware, (req, res) => {
@@ -93,28 +59,13 @@ const storage = multer.diskStorage({
 const uplaod = multer({ storage: storage });
 
 app.post("/api/sign_up", async (req, res) => {
-  const registerTable = `
-  CREATE TABLE IF NOT EXISTS sign_up (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    phone_no VARCHAR(20) NOT NULL UNIQUE,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )
-`;
-
-  sql.query(registerTable, (err) => {
-    if (err) console.log("Table creation error:", err.message);
-  });
-
   const { name, phone_no, email, password } = req.body;
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const insertSignUpData = `
-  INSERT INTO sign_up (name, phone_no, email, password) VALUES (?, ?, ?, ?)
+  INSERT INTO users (name, phoneNo, email, password) VALUES (?, ?, ?, ?)
   `;
 
     sql.query(
@@ -135,7 +86,7 @@ app.post("/api/sign_up", async (req, res) => {
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
 
-  const getInfo = `SELECT * FROM sign_up WHERE email = ?`;
+  const getInfo = `SELECT * FROM users WHERE email = ?`;
 
   sql.query(getInfo, [email], async (err, result) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -150,10 +101,6 @@ app.post("/api/login", async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ error: "Invalid password!" });
     }
-
-    // Creating a JWT Token
-    if (!SECRET_KEY)
-      return res.status(500).json({ message: "Internal Server error" });
 
     const token = jwt.sign(user, SECRET_KEY, { expiresIn: "1h" });
 
@@ -185,54 +132,56 @@ app.get("/api/logout", (req, res) => {
   res.json({ message: "Logged out" });
 });
 
-app.get("/api/table", (req, res, next) => {
-  const createQuery = `
+const createUserQuery = `
   CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(50) NOT NULL,
-  phoneNo VARCHAR(50) NOT NULL,
-  profileImage VARCHAR(500) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  phoneNo VARCHAR(50) UNIQUE NOT NULL,
+  profileImage VARCHAR(500) DEFAULT NULL,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
   `;
 
-  sql.query(createQuery, (err, result) => {
-    if (err) {
-      return res.status(500).json({ message: err.message });
-    }
-    res.json({ message: "Table created successfully", result });
-  });
+sql.query(createUserQuery, (err, result) => {
+  if (err) {
+    console.log("Users table creation error", err);
+    return;
+  }
+  console.log("Users table created successfully!");
+});
+
+const createMsgQuery = `
+CREATE TABLE IF NOT EXISTS messages (
+id INT AUTO_INCREMENT PRIMARY KEY,
+senderId INT NOT NULL,
+receiverId INT NOT NULL,
+message TEXT,
+type ENUM('text','image','file','audio') DEFAULT 'text',
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+seen_at TIMESTAMP NULL DEFAULT NULL,
+FOREIGN KEY (senderId) REFERENCES users(id),
+FOREIGN KEY (receiverId) REFERENCES users(id)
+)
+`;
+
+sql.query(createMsgQuery, (err, result) => {
+  if (err) {
+    console.error("Message table creation error: ", err);
+  }
+  console.log("Messages table created successfully!");
 });
 
 app.get("/api/messages/:userId", (req, res, next) => {
-  const createQuery = `
-  CREATE TABLE IF NOT EXISTS messages (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  senderId INT NOT NULL,
-  receiverId INT NOT NULL,
-  message TEXT,
-  type ENUM('text','image','file','audio') DEFAULT 'text',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (senderId) REFERENCES users(id),
-  FOREIGN KEY (receiverId) REFERENCES users(id)
-)
-  `;
-
   const selectQuery = `
-    SELECT * FROM messages 
+    SELECT * FROM messages
     WHERE (senderId = ? AND receiverId = ?) OR (senderId = ? AND receiverId = ?)
     ORDER BY created_at ASC
   `;
 
   const { userId } = req.params;
   const currentUser = req.query.currentUserId;
-
-  sql.query(createQuery, (err, result) => {
-    if (err) {
-      return res.status(500).json({ message: err.message });
-    }
-    // res.json({ message: "Messages table created successfully", result });
-  });
 
   sql.query(
     selectQuery,
@@ -245,14 +194,37 @@ app.get("/api/messages/:userId", (req, res, next) => {
 });
 
 app.post("/api/messages", (req, res) => {
-  const { senderId, receiverId, message, type } = req.body;
-  const insertQuery = `INSERT INTO messages (senderId, receiverId, message, type) VALUES (?, ?, ?, ?)`;
+  const { senderId, receiverId, message, type, created_at, seen_at } = req.body;
+
+  const mysqlDate = created_at || new Date();
+
+  const date = new Date(mysqlDate);
+
+  const formattedTime = date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  console.log("msg body>>> ", req);
+
+  if (!senderId || !receiverId || !message)
+    return res.status(400).json({ message: "Missing fields" });
+
+  const sqlQuery = `
+    INSERT INTO messages (senderId, receiverId, message, type)
+    VALUES (?, ?, ?, ?)
+  `;
+
   sql.query(
-    insertQuery,
-    [senderId, receiverId, message, type],
+    sqlQuery,
+    [senderId, receiverId, message, type, created_at, seen_at],
     (err, result) => {
       if (err) return res.status(500).json({ message: err.message });
-      res.json({ id: result.insertId, senderId, receiverId, message, type });
+      return res.json({
+        success: true,
+        result: { ...req.body, time: formattedTime, id: result.insertId },
+      });
     }
   );
 });
@@ -278,15 +250,7 @@ app.get("/api/user-images/:uid/:filename", (req, res) => {
   res.sendFile(path.resolve(filePath));
 });
 
-app.get("/api/messages", (req, res) => {
-  sql.query(`INSERT INTO users`);
-});
-
 app.post("/api/upload", uplaod.single("file"), (req, res, next) => {
-  axios
-    .get("http://localhost:4000/table")
-    .then(console.log)
-    .catch(console.error);
   if (!req.file) {
     return res
       .status(500)
@@ -329,5 +293,5 @@ app.post("/api/upload", uplaod.single("file"), (req, res, next) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`App running on the http://localhost:${PORT}`);
+  console.log(`Server + WebSocket running on the http://localhost:${PORT}`);
 });

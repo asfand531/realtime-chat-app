@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import SpeedDial from "./speedDial/SpeedDial";
+import axios from "axios";
 
-function MessageInput({ messages, setMessages }) {
+function MessageInput({ selectedUser, activeUserData, messages, setMessages }) {
   const [msg, setMsg] = useState("");
   const [isDisable, setIsDisable] = useState(true);
 
@@ -17,23 +18,19 @@ function MessageInput({ messages, setMessages }) {
     </svg>
   );
 
-  const handleSendBtn = () => {
+  const handleSendBtn = async () => {
     if (!msg.trim()) return;
 
     setIsDisable(msg.trim() === "");
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        sender: "You",
-        text: msg,
-        time: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      },
-    ]);
+    const res = await axios.post("/api/messages", {
+      senderId: activeUserData.id,
+      receiverId: selectedUser.id,
+      message: msg,
+      type: "text",
+    });
+
+    setMessages((prev) => [...prev, res.data.result]);
 
     setMsg("");
     setIsDisable(true);

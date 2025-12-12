@@ -57,11 +57,10 @@ export default function Login({ setLoginUserData }) {
         headers: { "Content-Type": "application/json" },
       });
 
-      const { message, name } = res.data;
+      const { message } = res.data;
 
       if (message === "Success") {
         localStorage.setItem("authToken", "true");
-        setLoginUserData(name);
         navigate("/");
       }
     } catch (error) {

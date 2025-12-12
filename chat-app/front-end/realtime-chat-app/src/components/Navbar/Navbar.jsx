@@ -8,7 +8,9 @@ function Navbar({ selectedUser, setSelectedUser, handleEsc }) {
           onKeyDown={handleEsc}
         >
           <img
-            src={selectedUser.profileImage}
+            src={
+              selectedUser.profileImage || "../public/Mens Profile Image.png"
+            }
             alt={selectedUser.name}
             className="w-6"
           />

@@ -43,6 +43,10 @@ export default function Register() {
       });
 
       setRegisterUser((prev) => [...prev, response.data]);
+
+      if (response.status === 200) {
+        e.target.reset();
+      }
     } catch (error) {
       console.log(error);
     }

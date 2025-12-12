@@ -14,6 +14,7 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [name, setName] = useState("");
+  const [activeUserData, setActiveUserData] = useState([]);
   const navigate = useNavigate();
 
   const filteredUsers = users.filter((user) => {
@@ -41,12 +42,27 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
     });
     const name1 = res?.data?.decoded?.name;
     setName(name1);
+    setActiveUserData(res?.data?.decoded);
+  };
+
+  const fetchMessages = async () => {
+    if (!selectedUser) return;
+
+    try {
+      const res = await axios.get(
+        `/api/messages/${selectedUser.id}?currentUserId=${activeUserData.id}`
+      );
+      setMessages(res.data);
+    } catch (err) {
+      console.log("Fetch messages error:", err);
+    }
   };
 
   useEffect(() => {
     const loadUsers = async () => {
       await handleGetUsers();
       await handleUserName();
+      await fetchMessages();
     };
 
     loadUsers();
@@ -62,7 +78,7 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
     return () => {
       window.removeEventListener("keydown", handleEsc);
     };
-  }, []);
+  }, [selectedUser]);
 
   const handleAddUser = async (e) => {
     e.preventDefault();
@@ -87,11 +103,12 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
     }
   };
 
-  const handleUserClick = async (users) => {
-    setSelectedUser(users.id);
+  const handleUserClick = async (user) => {
+    setSelectedUser(user.id);
 
     try {
-      const res = await axios.get("/api/messages/${user.id}");
+      const res = await axios.get(`/api/messages/${user.id}`);
+      console.log(res.data);
       setMessages(res.data);
     } catch (error) {
       console.error(error);
@@ -120,7 +137,7 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
             onClick={handleEsc}
           >
             {/* Navbar */}
-            <nav className="navbar w-full bg-base-300 fixed z-1000">
+            <nav className="navbar w-full bg-base-300 fixed z-10">
               <label
                 id="close_icon"
                 htmlFor="my-drawer-4"
@@ -166,7 +183,7 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
                 selectedUser={selectedUser}
                 setSelectedUser={setSelectedUser}
                 handleEsc={handleEsc}
-                handleUserClick={handleUserClick}
+                // handleUserClick={handleUserClick}
               />
             </div>
 
@@ -180,6 +197,8 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
                 handleEsc={handleEsc}
                 messages={messages}
                 setMessages={setMessages}
+                activeUserData={activeUserData}
+                selectedUser={selectedUser}
               />
             </div>
           </div>
@@ -194,12 +213,12 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
             className="drawer-overlay"
           ></label>
           <div className="flex min-h-full flex-col items-start bg-base-200 is-drawer-close:w-14 is-drawer-open:w-64 is-drawer-open:p-3">
-            <div className="flex justify-between items-center w-full">
-              <h2 className="text-2xl font-bold m-2 is-drawer-close:hidden">
+            <div className="flex justify-center items-center w-full">
+              <h2 className="text-2xl font-bold m-2 is-drawer-close:text-xs is-drawer-close:my-5">
                 Chats
               </h2>
 
-              <div
+              {/* <div
                 className="is-drawer-close:p-4 is-drawer-close:m-0 tooltip is-drawer-close:tooltip-right is-drawer-open:tooltip-left is-drawer-close:hover:bg-[#2e343b] is-drawer-close:hover:cursor-pointer"
                 data-tip="Add User"
                 onClick={() => setIsOpen(true)}
@@ -214,7 +233,7 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
                 >
                   <path d="M440-280h80v-160h160v-80H520v-160h-80v160H280v80h160v160Zm40 200q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z" />
                 </svg>
-              </div>
+              </div> */}
             </div>
 
             <Searchbar search={search} setSearch={setSearch} />
@@ -233,7 +252,7 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
                       onClick={() => setSelectedUser(user)}
                     >
                       <img
-                        src={profileImage}
+                        src={profileImage || "../public/Mens Profile Image.png"}
                         alt={name}
                         className="w-8 h-8 rounded-full object-cover"
                       />
