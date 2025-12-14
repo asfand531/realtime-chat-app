@@ -13,7 +13,6 @@ export function setupWebSocket(app) {
       console.log("WebSocket Open");
       console.log(e);
     });
-
     const id = cryptoID();
     obj[id] = {
       join: "Active",
