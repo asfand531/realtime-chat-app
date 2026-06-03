@@ -1,8 +1,10 @@
 import axios from "axios";
 import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
+import Alert from "@mui/material/Alert";
+import AlertTitle from "@mui/material/AlertTitle";
 
-export default function Register() {
+export default function Register({ error, setError, errorText, setErrorText }) {
   const [registerUser, setRegisterUser] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -30,12 +32,20 @@ export default function Register() {
     </svg>
   );
 
+  const showToast = (text) => {
+    setErrorText(text);
+    setError(true);
+
+    setTimeout(() => {
+      setError(false);
+      setErrorText("");
+    }, 3000);
+  };
+
   const handleSignUpForm = async (e) => {
     e.preventDefault();
 
     const form = new FormData(e.target);
-    const registerData = Object.fromEntries(form.entries());
-    console.log("User Register Data: ", registerData);
 
     try {
       const response = await axios.post("/api/sign_up", form, {
@@ -46,9 +56,11 @@ export default function Register() {
 
       if (response.status === 200) {
         e.target.reset();
+        showToast?.("Registration Successful!");
       }
     } catch (error) {
-      console.log(error);
+      const errMsg = error?.response?.data?.message || "Data already exists!";
+      showToast(errMsg);
     }
   };
 
@@ -72,6 +84,21 @@ export default function Register() {
 
   return (
     <>
+      {error && (
+        <div className="w-svw absolute z-10 flex justify-center items-center top-6">
+          <Alert
+            severity="error"
+            variant="filled"
+            onClose={() => {
+              setError(false);
+            }}
+          >
+            <AlertTitle>Error</AlertTitle>
+            <span>{errorText}</span>
+          </Alert>
+        </div>
+      )}
+
       <div className="drawer lg:drawer-open bg-base-300 flex justify-center">
         <div className="flex justify-center items-center h-screen">
           <form onSubmit={handleSignUpForm}>

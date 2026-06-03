@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Searchbar from "../searchBar/Searchbar";
 import NewUserModal from "../login/NewUserModal";
 import ChatBox from "../chatBox/ChatBox";
@@ -7,6 +7,7 @@ import MessageInput from "../chatBox/MessageInput";
 import axios from "axios";
 import DefaultScreen from "../default/DefaultScreen";
 import { useNavigate } from "react-router-dom";
+import { initiateSocket, getSocket, disconnectSocket } from "../../socket";
 
 function User({ search, setSearch, tooltip, handleDrawerClick }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,12 +15,15 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [name, setName] = useState("");
-  const [activeUserData, setActiveUserData] = useState([]);
+  const [activeUserData, setActiveUserData] = useState(null);
   const navigate = useNavigate();
 
-  const filteredUsers = users.filter((user) => {
-    return user.name.toLowerCase().includes(search.toLowerCase());
-  });
+  const selectedUserRef = useRef(null);
+  selectedUserRef.current = selectedUser;
+
+  const filteredUsers = users.filter((user) =>
+    user.name.toLowerCase().includes(search.toLowerCase()),
+  );
 
   const handleEsc = (e) => {
     if (e.key === "Escape") {
@@ -30,73 +34,110 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
   const handleGetUsers = async () => {
     try {
       const res = await axios.get("/api/users", { withCredentials: true });
-      setUsers(res.data);
+      return res.data;
     } catch (error) {
-      console.error("Error while rendering users!", error);
+      console.error("Error while fetching users!", error);
+      return [];
     }
   };
 
   const handleUserName = async () => {
-    const res = await axios.get("/api/me", {
-      withCredentials: true,
-    });
-    const name1 = res?.data?.decoded?.name;
-    setName(name1);
-    setActiveUserData(res?.data?.decoded);
-  };
-
-  const fetchMessages = async () => {
-    if (!selectedUser) return;
-
     try {
-      const res = await axios.get(
-        `/api/messages/${selectedUser.id}?currentUserId=${activeUserData.id}`
-      );
-      setMessages(res.data);
-    } catch (err) {
-      console.log("Fetch messages error:", err);
+      const res = await axios.get("/api/me", { withCredentials: true });
+      return res?.data?.user || null;
+    } catch (error) {
+      console.error("Error fetching current user:", error);
+      return null;
     }
   };
 
   useEffect(() => {
-    const loadUsers = async () => {
-      await handleGetUsers();
-      await handleUserName();
-      await fetchMessages();
-    };
+    const init = async () => {
+      const [currentUser, allUsers] = await Promise.all([
+        handleUserName(),
+        handleGetUsers(),
+      ]);
 
-    loadUsers();
+      if (!currentUser) {
+        navigate("/login");
+        return;
+      }
 
-    const handleEsc = (e) => {
-      if (e.key === "Escape") {
-        setIsOpen(false);
+      setActiveUserData(currentUser);
+      setName(currentUser.name);
+
+      setUsers(allUsers.filter((u) => u.id !== currentUser.id));
+
+      const token = localStorage.getItem("token");
+      if (token) {
+        initiateSocket(token);
       }
     };
 
-    window.addEventListener("keydown", handleEsc);
+    init();
+  }, []);
+
+  useEffect(() => {
+    if (!activeUserData) return;
+
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleNewMessage = (message) => {
+      const currentConvo = selectedUserRef.current;
+
+      if (
+        currentConvo &&
+        message.conversationId === currentConvo.conversationId
+      ) {
+        setMessages((prev) => {
+          const isDuplicate = prev.some(
+            (m) =>
+              m._optimistic &&
+              m.senderId === message.senderId &&
+              m.content === message.content,
+          );
+          if (isDuplicate) {
+            return prev.map((m) =>
+              m._optimistic &&
+              m.senderId === message.senderId &&
+              m.content === message.content
+                ? message
+                : m,
+            );
+          }
+          return [...prev, message];
+        });
+      }
+    };
+
+    const handleTyping = ({ userId, isTyping }) => {
+      if (userId !== activeUserData.id) {
+        console.log(`User ${userId} is typing:`, isTyping);
+      }
+    };
+
+    socket.on("new_message", handleNewMessage);
+    socket.on("typing", handleTyping);
 
     return () => {
-      window.removeEventListener("keydown", handleEsc);
+      socket.off("new_message", handleNewMessage);
+      socket.off("typing", handleTyping);
     };
-  }, [selectedUser]);
+  }, [activeUserData]);
 
   const handleAddUser = async (e) => {
     e.preventDefault();
 
     const formData = new FormData(e.target);
 
-    let userObj = Object.fromEntries(formData.entries());
-    console.log("User Object:", userObj);
-
-    // Upload to backend
     try {
       const res = await axios.post("/api/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
+        withCredentials: true,
       });
 
-      // Add new user to UI
       setUsers((prev) => [...prev, res.data]);
-
       setIsOpen(false);
     } catch (err) {
       console.error(err);
@@ -104,21 +145,31 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
   };
 
   const handleUserClick = async (user) => {
-    setSelectedUser(user.id);
-
     try {
-      const res = await axios.get(`/api/messages/${user.id}`);
-      console.log(res.data);
-      setMessages(res.data);
-    } catch (error) {
-      console.error(error);
+      const res = await axios.post(
+        "/api/conversations",
+        { userId: user.id },
+        { withCredentials: true },
+      );
+      const convoId = res.data.conversationId;
+
+      const messagesRes = await axios.get(
+        `/api/conversations/${convoId}/messages`,
+        { withCredentials: true },
+      );
+
+      setMessages(messagesRes.data);
+      setSelectedUser({ ...user, conversationId: convoId });
+    } catch (err) {
+      console.error("Error opening conversation:", err);
     }
   };
 
   const handleLogout = async () => {
-    await axios.get("/api/logout");
+    await axios.get("/api/logout", { withCredentials: true });
+    localStorage.removeItem("token");
+    disconnectSocket();
     navigate("/login");
-    return;
   };
 
   return (
@@ -146,7 +197,6 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
                 data-tip={`${tooltip} drawer`}
                 onClick={handleDrawerClick}
               >
-                {/* Sidebar toggle icon */}
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
@@ -183,7 +233,7 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
                 selectedUser={selectedUser}
                 setSelectedUser={setSelectedUser}
                 handleEsc={handleEsc}
-                // handleUserClick={handleUserClick}
+                activeUserId={activeUserData?.id}
               />
             </div>
 
@@ -217,23 +267,6 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
               <h2 className="text-2xl font-bold m-2 is-drawer-close:text-xs is-drawer-close:my-5">
                 Chats
               </h2>
-
-              {/* <div
-                className="is-drawer-close:p-4 is-drawer-close:m-0 tooltip is-drawer-close:tooltip-right is-drawer-open:tooltip-left is-drawer-close:hover:bg-[#2e343b] is-drawer-close:hover:cursor-pointer"
-                data-tip="Add User"
-                onClick={() => setIsOpen(true)}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  height="24px"
-                  viewBox="0 -960 960 960"
-                  width="24px"
-                  fill="white"
-                  className="cursor-pointer"
-                >
-                  <path d="M440-280h80v-160h160v-80H520v-160h-80v160H280v80h160v160Zm40 200q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z" />
-                </svg>
-              </div> */}
             </div>
 
             <Searchbar search={search} setSearch={setSearch} />
@@ -249,14 +282,13 @@ function User({ search, setSearch, tooltip, handleDrawerClick }) {
                     <button
                       className="is-drawer-close:tooltip is-drawer-close:tooltip-right"
                       data-tip={name}
-                      onClick={() => setSelectedUser(user)}
+                      onClick={() => handleUserClick(user)}
                     >
                       <img
                         src={profileImage || "../public/Mens Profile Image.png"}
                         alt={name}
                         className="w-8 h-8 rounded-full object-cover"
                       />
-
                       <span className="is-drawer-close:hidden">{name}</span>
                     </button>
                   </li>

@@ -6,20 +6,27 @@ import fs from "fs";
 import path from "path";
 import bcrypt from "bcrypt";
 import cookieParser from "cookie-parser";
-import { WebSocketServer } from "ws";
 import http from "http";
 import { authMiddleware } from "./authMiddleware.js";
 import jwt from "jsonwebtoken";
 import { SECRET_KEY } from "./authMiddleware.js";
-import { setupWebSocket } from "./ws.js";
+import { setupSocket } from "./socket.js";
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+
+app.use(
+  cors({
+    origin: "http://localhost:3020",
+    credentials: true,
+  }),
+);
+
 app.use(cookieParser());
 const PORT = 4000;
 
-const server = setupWebSocket(app);
+const server = http.createServer(app);
+setupSocket(server);
 
 const uploadRoot = path.join(process.cwd(), "uploadedImages");
 
@@ -36,15 +43,12 @@ app.use("/images", express.static(uploadRoot));
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     const uniqueId = Date.now().toString("16");
-
-    // const folder = `uploadedImages/${uniqueId}`;
     const folder = path.join(uploadRoot, uniqueId);
 
     try {
       await fs.promises.mkdir(folder, { recursive: true });
       req.savedFolder = folder;
       req.fileUid = uniqueId;
-
       cb(null, folder);
     } catch (error) {
       cb(error, null);
@@ -56,7 +60,7 @@ const storage = multer.diskStorage({
   },
 });
 
-const uplaod = multer({ storage: storage });
+const upload = multer({ storage: storage });
 
 app.post("/api/sign_up", async (req, res) => {
   const { name, phone_no, email, password } = req.body;
@@ -65,18 +69,30 @@ app.post("/api/sign_up", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const insertSignUpData = `
-  INSERT INTO users (name, phoneNo, email, password) VALUES (?, ?, ?, ?)
-  `;
+      INSERT INTO users (name, phoneNo, email, password) VALUES (?, ?, ?, ?)
+    `;
 
     sql.query(
       insertSignUpData,
       [name, phone_no, email, hashedPassword],
       (err, result) => {
         if (err) {
-          return res.status(500).json({ message: err.sqlMessage });
+          if (err.code === "ER_DUP_ENTRY") {
+            if (err.sqlMessage.includes("phoneNo")) {
+              return res
+                .status(400)
+                .json({ message: "Phone number is already used" });
+            }
+            if (err.sqlMessage.includes("email")) {
+              return res.status(400).json({ message: "Email is already used" });
+            }
+          }
+          return res
+            .status(500)
+            .json({ message: "Server error. Please try again." });
         }
-        return res.json({ success: true });
-      }
+        return res.json({ success: true, message: "Registration successful" });
+      },
     );
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
@@ -89,10 +105,15 @@ app.post("/api/login", async (req, res) => {
   const getInfo = `SELECT * FROM users WHERE email = ?`;
 
   sql.query(getInfo, [email], async (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) {
+      console.error(err);
+      return res
+        .status(500)
+        .json({ message: "Server error. Please try again." });
+    }
 
     if (result.length === 0) {
-      return res.status(400).json({ error: "Email and password not found!" });
+      return res.status(400).json({ error: "Email required!" });
     }
 
     const user = result[0];
@@ -102,28 +123,37 @@ app.post("/api/login", async (req, res) => {
       return res.status(400).json({ error: "Invalid password!" });
     }
 
-    const token = jwt.sign(user, SECRET_KEY, { expiresIn: "1h" });
+    const userPayload = { id: user.id, name: user.name, email: user.email };
 
-    // Send it as HTTP-ONLY COOKIE
+    const token = jwt.sign(userPayload, SECRET_KEY, { expiresIn: "1h" });
+
     res.cookie("authToken", token, {
       httpOnly: true,
-      secure: false, // Make true when using  HTTPS
+      secure: false,
       sameSite: "strict",
       maxAge: 60 * 60 * 1000,
     });
 
-    res.json({ message: "Success" });
+    res.json({ message: "Success", token });
   });
 });
 
 app.get("/api/me", (req, res) => {
   const token = req.cookies.authToken;
 
-  jwt.verify(token, SECRET_KEY, function (err, decoded) {
+  if (!token) {
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+
+  jwt.verify(token, SECRET_KEY, (err, decoded) => {
     if (err) {
-      res.status(500).json({ message: "Token expired!" });
+      return res.status(401).json({ message: "Token expired or invalid" });
     }
-    res.json({ message: "Success", decoded });
+
+    res.json({
+      authenticated: true,
+      user: decoded,
+    });
   });
 });
 
@@ -134,114 +164,182 @@ app.get("/api/logout", (req, res) => {
 
 const createUserQuery = `
   CREATE TABLE IF NOT EXISTS users (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  phoneNo VARCHAR(50) UNIQUE NOT NULL,
-  profileImage VARCHAR(500) DEFAULT NULL,
-  email VARCHAR(100) UNIQUE NOT NULL,
-  password VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)
-  `;
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    phoneNo VARCHAR(50) UNIQUE NOT NULL,
+    profileImage VARCHAR(500) DEFAULT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    last_seen TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )
+`;
 
-sql.query(createUserQuery, (err, result) => {
-  if (err) {
-    console.log("Users table creation error", err);
-    return;
-  }
-  console.log("Users table created successfully!");
+sql.query(createUserQuery, (err) => {
+  if (err) console.log("Users table creation error", err);
+  else console.log("Users table ready!");
+});
+
+const conversationsTableQuery = `
+  CREATE TABLE IF NOT EXISTS conversations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) DEFAULT NULL,
+    is_group BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )
+`;
+
+sql.query(conversationsTableQuery, (err) => {
+  if (err) console.error("Conversations table creation error: ", err);
+  else console.log("Conversations table ready!");
+});
+
+const conversationMembersTableQuery = `
+  CREATE TABLE IF NOT EXISTS conversation_members (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    conversationId INT NOT NULL,
+    userId INT NOT NULL,
+    role ENUM('member','admin') DEFAULT 'member',
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversationId) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY conversation_user_unique (conversationId, userId)
+  )
+`;
+
+sql.query(conversationMembersTableQuery, (err) => {
+  if (err) console.error("Conversation members table creation error: ", err);
+  else console.log("Conversation members table ready!");
 });
 
 const createMsgQuery = `
-CREATE TABLE IF NOT EXISTS messages (
-id INT AUTO_INCREMENT PRIMARY KEY,
-senderId INT NOT NULL,
-receiverId INT NOT NULL,
-message TEXT,
-type ENUM('text','image','file','audio') DEFAULT 'text',
-created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-seen_at TIMESTAMP NULL DEFAULT NULL,
-FOREIGN KEY (senderId) REFERENCES users(id),
-FOREIGN KEY (receiverId) REFERENCES users(id)
-)
+  CREATE TABLE IF NOT EXISTS messages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    conversationId INT NOT NULL,
+    senderId INT NOT NULL,
+    content TEXT,
+    type ENUM('text','image','file','audio') DEFAULT 'text',
+    metadata JSON NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversationId) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (senderId) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX (conversationId, created_at)
+  )
 `;
 
-sql.query(createMsgQuery, (err, result) => {
-  if (err) {
-    console.error("Message table creation error: ", err);
-  }
-  console.log("Messages table created successfully!");
+sql.query(createMsgQuery, (err) => {
+  if (err) console.error("Message table creation error: ", err);
+  else console.log("Messages table ready!");
 });
 
-app.get("/api/messages/:userId", (req, res, next) => {
-  const selectQuery = `
-    SELECT * FROM messages
-    WHERE (senderId = ? AND receiverId = ?) OR (senderId = ? AND receiverId = ?)
-    ORDER BY created_at ASC
+const messageReceiptsTableQuery = `
+  CREATE TABLE IF NOT EXISTS message_receipts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    messageId BIGINT NOT NULL,
+    userId INT NOT NULL,
+    delivered_at TIMESTAMP NULL,
+    seen_at TIMESTAMP NULL,
+    FOREIGN KEY (messageId) REFERENCES messages(id) ON DELETE CASCADE,
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY message_user_unique (messageId, userId)
+  )
+`;
+
+sql.query(messageReceiptsTableQuery, (err) => {
+  if (err) console.error("Message receipts table creation error: ", err);
+  else console.log("Message receipts table ready!");
+});
+
+app.post("/api/conversations", authMiddleware, (req, res) => {
+  const { userId } = req.body;
+  const currentUser = req.user.id;
+
+  const findExistingQuery = `
+    SELECT cm1.conversationId
+    FROM conversation_members cm1
+    JOIN conversation_members cm2 ON cm1.conversationId = cm2.conversationId
+    JOIN conversations c ON c.id = cm1.conversationId
+    WHERE cm1.userId = ?
+      AND cm2.userId = ?
+      AND c.is_group = FALSE
+    LIMIT 1
   `;
 
-  const { userId } = req.params;
-  const currentUser = req.query.currentUserId;
+  sql.query(findExistingQuery, [currentUser, userId], (err, existing) => {
+    if (err) return res.status(500).json(err);
 
-  sql.query(
-    selectQuery,
-    [currentUser, userId, userId, currentUser],
-    (err, result) => {
-      if (err) return res.status(500).json({ message: err.message });
-      return res.json(result);
+    if (existing.length > 0) {
+
+      return res.json({ conversationId: existing[0].conversationId });
     }
-  );
-});
 
-app.post("/api/messages", (req, res) => {
-  const { senderId, receiverId, message, type, created_at, seen_at } = req.body;
+    sql.query(
+      "INSERT INTO conversations (is_group) VALUES (false)",
+      (err, convoResult) => {
+        if (err) return res.status(500).json(err);
 
-  const mysqlDate = created_at || new Date();
+        const convoId = convoResult.insertId;
 
-  const date = new Date(mysqlDate);
-
-  const formattedTime = date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
+        sql.query(
+          `INSERT INTO conversation_members (conversationId, userId)
+           VALUES (?, ?), (?, ?)`,
+          [convoId, currentUser, convoId, userId],
+          (err) => {
+            if (err) return res.status(500).json(err);
+            res.json({ conversationId: convoId });
+          },
+        );
+      },
+    );
   });
-
-  console.log("msg body>>> ", req);
-
-  if (!senderId || !receiverId || !message)
-    return res.status(400).json({ message: "Missing fields" });
-
-  const sqlQuery = `
-    INSERT INTO messages (senderId, receiverId, message, type)
-    VALUES (?, ?, ?, ?)
-  `;
-
-  sql.query(
-    sqlQuery,
-    [senderId, receiverId, message, type, created_at, seen_at],
-    (err, result) => {
-      if (err) return res.status(500).json({ message: err.message });
-      return res.json({
-        success: true,
-        result: { ...req.body, time: formattedTime, id: result.insertId },
-      });
-    }
-  );
 });
 
-app.get("/api/users", authMiddleware, (req, res) => {
-  sql.query("SELECT * from users", (err, result) => {
-    if (err) {
-      return res.status(500).json({ message: err.message });
-    }
-    console.log(result);
+app.get("/api/conversations", authMiddleware, (req, res) => {
+  const userId = req.user.id;
+
+  const query = `
+    SELECT c.*
+    FROM conversations c
+    JOIN conversation_members cm ON cm.conversationId = c.id
+    WHERE cm.userId = ?
+  `;
+
+  sql.query(query, [userId], (err, result) => {
+    if (err) return res.status(500).json(err);
     res.json(result);
   });
 });
 
+app.get("/api/conversations/:id/messages", authMiddleware, (req, res) => {
+  const conversationId = req.params.id;
+
+  const query = `
+    SELECT m.*, u.name AS senderName
+    FROM messages m
+    JOIN users u ON u.id = m.senderId
+    WHERE m.conversationId = ?
+    ORDER BY m.created_at ASC
+  `;
+
+  sql.query(query, [conversationId], (err, result) => {
+    if (err) return res.status(500).json({ message: err.message });
+    res.json(result);
+  });
+});
+
+app.get("/api/users", authMiddleware, (req, res) => {
+  sql.query(
+    "SELECT id, name, phoneNo, profileImage, email, last_seen, created_at FROM users",
+    (err, result) => {
+      if (err) return res.status(500).json({ message: err.message });
+      res.json(result);
+    },
+  );
+});
+
 app.get("/api/user-images/:uid/:filename", (req, res) => {
   const { uid, filename } = req.params;
-  const filePath = path.join("uploads", uid, filename);
+  const filePath = path.join(uploadRoot, uid, filename);
 
   if (!fs.existsSync(filePath)) {
     return res.status(404).send("File not found");
@@ -250,7 +348,7 @@ app.get("/api/user-images/:uid/:filename", (req, res) => {
   res.sendFile(path.resolve(filePath));
 });
 
-app.post("/api/upload", uplaod.single("file"), (req, res, next) => {
+app.post("/api/upload", upload.single("file"), (req, res) => {
   if (!req.file) {
     return res
       .status(500)
@@ -261,9 +359,7 @@ app.post("/api/upload", uplaod.single("file"), (req, res, next) => {
   const fileName = req.file.originalname;
   const { name, phoneNo } = req.body;
 
-  const publicUrl = `${req.protocol}://${req.get("host")}/images/${
-    req.fileUid
-  }/${fileName}`;
+  const publicUrl = `${req.protocol}://${req.get("host")}/images/${req.fileUid}/${fileName}`;
 
   fs.readFile(filePath, (err) => {
     if (err) {
@@ -282,16 +378,16 @@ app.post("/api/upload", uplaod.single("file"), (req, res, next) => {
             .json({ message: `Error while saving the image ${err.message}` });
         }
         res.json({
-          name: name,
-          phoneNo: phoneNo,
+          name,
+          phoneNo,
           profileImage: publicUrl,
           message: "New user added!",
         });
-      }
+      },
     );
   });
 });
 
 server.listen(PORT, () => {
-  console.log(`Server + WebSocket running on the http://localhost:${PORT}`);
+  console.log(`Server + WebSocket running on http://localhost:${PORT}`);
 });

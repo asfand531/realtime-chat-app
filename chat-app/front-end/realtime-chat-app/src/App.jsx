@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import User from "./components/users/User";
 import Login from "./components/login/Login";
 import Register from "./components/login/Register";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 
 export default function App() {
+  const [error, setError] = useState(false);
+  const [errorText, setErrorText] = useState("");
   const [tooltip, setTooltip] = useState("Close");
   const [search, setSearch] = useState("");
   const [isDrawerOpen, setIsDrawerOpen] = useState(true);
@@ -18,29 +20,32 @@ export default function App() {
     handleDrawer();
   };
 
-  // useEffect(() => {
-  //   const ws = new WebSocket("ws://localhost:4000");
-  //   ws.addEventListener("open", () => {
-  //     console.log("Connected");
-  //   });
-  //   ws.addEventListener("message", (e) => {
-  //     console.log(e);
-  //   });
-  //   ws.addEventListener("error", (e) => {
-  //     console.log(e);
-  //   });
-  //   ws.addEventListener("close", (e) => {
-  //     ws.close();
-  //   });
-  //   ws.send("");
-  // }, []);
-
   return (
     <>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route
+            path="/login"
+            element={
+              <Login
+                error={error}
+                setError={setError}
+                errorText={errorText}
+                setErrorText={setErrorText}
+              />
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <Register
+                error={error}
+                setError={setError}
+                errorText={errorText}
+                setErrorText={setErrorText}
+              />
+            }
+          />
           <Route
             path="/"
             element={

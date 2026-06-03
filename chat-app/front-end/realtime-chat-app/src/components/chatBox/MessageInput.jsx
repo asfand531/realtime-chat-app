@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import SpeedDial from "./speedDial/SpeedDial";
-import axios from "axios";
+import { getSocket } from "../../socket";
 
 function MessageInput({ selectedUser, activeUserData, messages, setMessages }) {
   const [msg, setMsg] = useState("");
@@ -18,57 +18,84 @@ function MessageInput({ selectedUser, activeUserData, messages, setMessages }) {
     </svg>
   );
 
-  const handleSendBtn = async () => {
-    if (!msg.trim()) return;
+  const handleSendBtn = () => {
+    if (!msg.trim() || !selectedUser?.conversationId) return;
 
-    setIsDisable(msg.trim() === "");
+    const socket = getSocket();
+    if (!socket) return;
 
-    const res = await axios.post("/api/messages", {
-      senderId: activeUserData.id,
-      receiverId: selectedUser.id,
-      message: msg,
+    const trimmed = msg.trim();
+
+    socket.emit("send_message", {
+      conversationId: selectedUser.conversationId,
+      content: trimmed,
       type: "text",
     });
 
-    setMessages((prev) => [...prev, res.data.result]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `optimistic_${Date.now()}`,
+        senderId: activeUserData.id,
+        conversationId: selectedUser.conversationId,
+        content: trimmed,
+        created_at: new Date().toISOString(),
+        _optimistic: true,
+      },
+    ]);
 
     setMsg("");
     setIsDisable(true);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendBtn();
+    }
   };
 
   const handleInput = (e) => {
     const value = e.target.value;
     setMsg(value);
     setIsDisable(value.trim() === "");
+
+    // Emit typing indicator
+    const socket = getSocket();
+    if (socket && selectedUser?.conversationId) {
+      socket.emit("typing", {
+        conversationId: selectedUser.conversationId,
+        isTyping: value.trim() !== "",
+      });
+    }
   };
 
   return (
-    <>
-      <div className="flex items-center gap-3 px-4 py-3 w-full overflow-hidden no-scrollbar">
-        <SpeedDial />
+    <div className="flex items-center gap-3 px-4 py-3 w-full overflow-hidden no-scrollbar">
+      <SpeedDial />
 
-        <textarea
-          rows={1}
-          placeholder="Type a message here..."
-          className="border px-5 py-3 ml-16 rounded-xl w-svw"
-          value={msg}
-          onChange={handleInput}
-        />
+      <textarea
+        rows={1}
+        placeholder="Type a message here..."
+        className="border px-5 py-3 ml-16 rounded-xl w-svw"
+        value={msg}
+        onChange={handleInput}
+        onKeyDown={handleKeyDown}
+      />
 
-        <button
-          className={`border px-3 py-3 rounded-4xl tooltip tooltip-left ${
-            isDisable
-              ? "opacity-50 cursor-not-allowed"
-              : "opacity-100 cursor-pointer"
-          }`}
-          data-tip={isDisable ? "" : "Send message"}
-          onClick={handleSendBtn}
-          disabled={isDisable}
-        >
-          {sendBtn}
-        </button>
-      </div>
-    </>
+      <button
+        className={`border px-3 py-3 rounded-4xl tooltip tooltip-left ${
+          isDisable
+            ? "opacity-50 cursor-not-allowed"
+            : "opacity-100 cursor-pointer"
+        }`}
+        data-tip={isDisable ? "" : "Send message"}
+        onClick={handleSendBtn}
+        disabled={isDisable}
+      >
+        {sendBtn}
+      </button>
+    </div>
   );
 }
 

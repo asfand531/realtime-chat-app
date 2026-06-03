@@ -1,14 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
-import Cookies from "js-cookie";
+import { initiateSocket } from "../../socket";
 
-export default function Login({ setLoginUserData }) {
+export default function Login({ error, setError, errorText, setErrorText }) {
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState(false);
-  const [errorText, setErrorText] = useState("");
   const navigate = useNavigate();
 
   const visibility = (
@@ -54,34 +52,19 @@ export default function Login({ setLoginUserData }) {
     try {
       const res = await axios.post("/api/login", userLogin, {
         withCredentials: true,
-        headers: { "Content-Type": "application/json" },
       });
 
-      const { message } = res.data;
-
-      if (message === "Success") {
-        localStorage.setItem("authToken", "true");
+      if (res.data.message === "Success") {
+        localStorage.setItem("token", res.data.token);
+        initiateSocket(res.data.token);
         navigate("/");
       }
     } catch (error) {
-      const errMsg = error?.response?.data?.message || "Something went wrong!";
-      console.log("Your error message: ", error);
+      const errMsg =
+        error?.response?.data?.message || "Email and password incorrect!";
       showToast(errMsg);
     }
   };
-
-  useEffect(() => {
-    const token = Cookies.get("authToken");
-
-    if (token) {
-      navigate("/");
-    }
-
-    axios
-      .get("/api/check-auth", { withCredentials: true })
-      .then(() => navigate("/"))
-      .catch(() => {});
-  }, [navigate]);
 
   return (
     <>
@@ -119,7 +102,7 @@ export default function Login({ setLoginUserData }) {
               <span className="relative flex items-center">
                 <input
                   type={showPassword ? "text" : "password"}
-                  className={`input w-lg pr-10 `}
+                  className="input w-lg pr-10"
                   placeholder="Password"
                   name="password"
                   autoComplete="false"
