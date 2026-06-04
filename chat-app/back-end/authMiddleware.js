@@ -1,17 +1,9 @@
-import fs from "fs";
-import path from "path";
-import yaml from "js-yaml";
 import jwt from "jsonwebtoken";
-import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
-const configPath = path.resolve(__dirname, "config.yaml");
-
-const config = yaml.load(fs.readFileSync(configPath, "utf8"));
-
-export const SECRET_KEY = config.secrets.key;
+export const SECRET_KEY = process.env.SECRET_KEY;
 
 export function authMiddleware(req, res, next) {
   const token = req.cookies.authToken;
@@ -22,7 +14,7 @@ export function authMiddleware(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, SECRET_KEY);
-    req.user = decoded; // store user info
+    req.user = decoded;
     next();
   } catch (err) {
     res.status(401).json({ error: "Invalid or expired token" });
